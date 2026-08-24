@@ -1,0 +1,12 @@
+# Segredos - NUNCA versionar
+secrets.local.yaml
+
+# Estado local
+driftbot.db
+driftbot.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

@@ -1,0 +1,70 @@
+name: DriftBot
+
+on:
+  schedule:
+    # A cada 30 min, 24 horas por dia.
+    #
+    # Isso so cabe porque o repositorio e PUBLICO: GitHub Actions e ilimitado e
+    # gratuito em repo publico. Se um dia ele voltar a ser privado, este cron
+    # estoura a cota de 2.000 min/mes (48 execucoes/dia x 4 min = ~5.800 min) e o
+    # bot para no meio do mes - nesse caso volte para "0 11-23,0-1 * * *" (1x/hora,
+    # 8h-22h BRT, ~1.800 min/mes).
+    #
+    # O cron do GitHub costuma atrasar 5-20 min em horario de pico. Nao e relogio.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}   # botao "Run workflow" pra rodar na hora
+
+# Se um ciclo demorar mais que o intervalo, nao empilha dois ao mesmo tempo.
+concurrency:
+  group: driftbot
+  cancel-in-progress: false
+
+jobs:
+  varrer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # O banco guarda o que ja foi avisado. Sem isso, todo ciclo reenviaria tudo.
+      # Chave unica por execucao + restore-keys pega sempre a mais recente.
+      - name: Restaurar memoria do bot
+        uses: actions/cache/restore@v4
+        with:
+          path: driftbot.db
+          key: driftbot-db-${{ github.run_id }}
+          restore-keys: driftbot-db-
+
+      - name: Varrer e notificar
+        env:
+          DRIFTBOT_TG_TOKEN: ${{ secrets.DRIFTBOT_TG_TOKEN }}
+          DRIFTBOT_TG_CHAT: ${{ secrets.DRIFTBOT_TG_CHAT }}
+          # Secao `region` inteira em JSON - fica fora do config.yaml porque o
+          # repositorio e publico e a lista de cidades revela onde ele mora.
+          DRIFTBOT_REGION: ${{ secrets.DRIFTBOT_REGION }}
+        run: python driftbot.py --once
+
+      - name: Salvar memoria do bot
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: driftbot.db
+          key: driftbot-db-${{ github.run_id }}
+
+      - name: Guardar log (pra depurar se uma fonte cair)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ github.run_id }}
+          path: driftbot.log
+          retention-days: 7
+          if-no-files-found: ignore

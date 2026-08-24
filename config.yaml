@@ -1,0 +1,269 @@
+# ============================================================================
+#  DriftBot - config
+#  Edite este arquivo. Nao precisa mexer no codigo.
+# ============================================================================
+
+telegram:
+  # NAO ponha o token aqui - este arquivo vai pro GitHub.
+  # Na sua maquina: fica em secrets.local.yaml (ignorado pelo Git).
+  # No GitHub Actions: vem dos secrets DRIFTBOT_TG_TOKEN / DRIFTBOT_TG_CHAT.
+  bot_token: ""
+  chat_id: ""
+
+budget:
+  max_price: 70000
+  # Abaixo disso quase sempre e sucata/anuncio falso/so documento
+  min_price: 4000
+  # Se o preco cair >= X% num anuncio ja visto, notifica de novo
+  price_drop_alert_pct: 7
+
+year:
+  min: 1968
+  max: 2014
+
+filtros:
+  # Automatico SO entra se der pra trocar marcha na mao (borboleta/Steptronic).
+  # Manual entra sempre. Anuncio sem info de cambio nao e descartado.
+  # ATENCAO: a OLX nao tem campo de borboleta (lista de opcionais dela e fixa em 19
+  # itens, verificado em 2026-08-24), entao la a deteccao e por modelo+ano e vem
+  # marcada como "a confirmar". Onde ha texto do vendedor (usadosbr) e confirmada.
+  exigir_troca_manual: true
+  # true = descarta carro de familia e so manda projeto/batido/preparado.
+  # Deixado false: 'foco' em projeto e feito pela PONTUACAO (+12), nao excluindo,
+  # senao sobrariam pouquissimos anuncios.
+  somente_projetos: false
+
+region:
+  # ATENCAO: este arquivo e PUBLICO. A regiao real (as cidades da vizinhanca) NAO
+  # fica aqui - ela revelaria onde ele mora. O que esta abaixo e so um padrao
+  # generico pra quem clonar o projeto conseguir rodar.
+  #   Na maquina dele: secrets.local.yaml (ignorado pelo Git).
+  #   No GitHub Actions: secret DRIFTBOT_REGION, com a secao inteira em JSON.
+  uf: SP
+  olx_region_path: estado-sp
+  cidades_perto: []
+  cidades_medio: []
+
+scan:
+  # Minutos entre varreduras completas
+  interval_min: 30
+  # Maximo de alertas por varredura (evita flood se o filtro abrir demais)
+  max_alerts_per_scan: 12
+  # Fontes ligadas.
+  # 'icarros' esta DESLIGADO de proposito: testado em 2026-08-24, ele ignora todos os
+  # filtros de preco (?precoate / ?prc / ?pma devolvem sempre a mesma lista, a partir de
+  # R$ 60.000) e nao tem carro antigo nenhum - 'chevrolet/opala' volta zero. E um site de
+  # seminovo caro. Religar so se um dia passar a aceitar filtro de preco.
+  # 'usadosbr' DESLIGADO em 2026-08-24, apesar de o modulo funcionar. Motivo: paginacao
+  # quebrada (?page=1,3,6,9,11 devolvem os MESMOS 19 anuncios), nenhum parametro de
+  # ordenacao/filtro funciona, e o estoque comeca em R$ 78.900 / ano 2013 - zero
+  # anuncio dentro do orcamento. Religar se o teto passar de ~R$ 80.000: o modulo le
+  # `comments` (texto do vendedor), o unico lugar que confirma borboleta e "projeto".
+  sources: [olx, webmotors]
+
+  # Varredura por MARCA na OLX (paginada). Cobre em poucas requisicoes tudo que e
+  # comum - medido: "bmw" com 6 paginas acha 97 carros em 10s, contra 78 que as 54
+  # buscas por modelo achavam em 152s. Satura em 6 paginas (10 paginas da o mesmo).
+  # Modelo raro NAO e coberto aqui (um Silvia ficaria na pagina 12 de "nissan"),
+  # por isso os alvos japoneses mantem `queries` proprias.
+  brand_sweep:
+    bmw: 6
+    nissan: 4
+    toyota: 4
+    mazda: 3
+    lexus: 2
+  # Varredura dedicada a leilao/batido na OLX. Sao buscas pela palavra SOZINHA:
+  # a OLX ignora termo extra ("opala batido" = "opala"), mas "batido" puro traz uma
+  # pagina cheia de carro avariado, e o filtro de alvos garimpa os que interessam.
+  auction_sweep:
+    - batido
+    - leilao
+    - sinistro
+    - "recuperado de leilao"
+    - "batido rodando"
+    - "so retirar"
+
+# ============================================================================
+#  ALVOS - tier A = drift de verdade (RWD), B = plataforma boa/projeto,
+#          C = so vale se estiver muito barato
+# ============================================================================
+targets:
+  # ==========================================================================
+  # ESCOPO definido pelo usuario em 2026-08-24: SO as marcas
+  # BMW, Audi, Nissan, Toyota (inc. Lexus) e Mazda.
+  # Removidos a pedido dele: todos os Chevrolet (Opala/Caravan/Omega/Chevette/
+  # Camaro), todos os Ford (Maverick/Mustang/Del Rey/Corcel/Belina), Dodge e
+  # Mercedes. Nao readicionar sem ele mandar.
+  # ==========================================================================
+
+  # ---------- BMW: o que de fato existe pra drift no orcamento dele ----------
+  - name: "BMW Serie 3 (E30/E36/E46/E90)"
+    tier: A
+    queries: []   # coberto pela varredura de marca (scan.brand_sweep)
+    must_any: ["318i", "320i", "323i", "325i", "328i", "330i", "e30", "e36", "e46", "e90", "serie 3"]
+    usadosbr: ["bmw/320i", "bmw/325i", "bmw/328i", "bmw/330i", "bmw/318i"]
+    icarros: ["bmw/320i", "bmw/325i", "bmw/328i", "bmw/330i", "bmw/serie-3"]
+
+  # Serie 1 e traseira tambem, e a mais barata de todas - ja apareceu 120i a R$ 22k
+  - name: "BMW Serie 1 (E81/E87 - RWD)"
+    tier: A
+    queries: []   # coberto pela varredura de marca (scan.brand_sweep)
+    must_any: ["118i", "120i", "125i", "130i", "serie 1"]
+    usadosbr: ["bmw/118i", "bmw/120i", "bmw/130i"]
+    icarros: ["bmw/120i", "bmw/serie-1"]
+
+  - name: "BMW Serie 5 (E34/E39/E60)"
+    tier: B
+    queries: []   # coberto pela varredura de marca (scan.brand_sweep)
+    must_any: ["525i", "528i", "530i", "540i", "e34", "e39", "e60", "serie 5"]
+    usadosbr: ["bmw/525i", "bmw/530i", "bmw/540i"]
+    icarros: ["bmw/525i", "bmw/530i", "bmw/serie-5"]
+
+  - name: "BMW Z3 / Z4"
+    tier: A
+    queries: ["bmw z3", "bmw z4"]
+    must_any: ["z3", "z4"]
+    usadosbr: ["bmw/z3", "bmw/z4"]
+    icarros: ["bmw/z4"]
+
+  # ---------- Nissan ----------
+  - name: "Nissan 350Z / 370Z"
+    tier: A
+    queries: ["350z", "370z"]
+    must_any: ["350z", "370z", "fairlady"]
+    usadosbr: ["nissan/350z", "nissan/370z"]
+    icarros: ["nissan/350z", "nissan/370z"]
+
+  - name: "Nissan Silvia / 180SX / 200SX / 240SX"
+    tier: A
+    queries: ["nissan silvia", "180sx", "240sx"]
+    must_any: ["silvia", "180sx", "200sx", "240sx", "s13", "s14", "s15"]
+    usadosbr: ["nissan/silvia"]
+
+  - name: "Nissan Skyline"
+    tier: A
+    queries: ["nissan skyline"]
+    must_any: ["skyline", "r32", "r33", "r34"]
+    usadosbr: ["nissan/skyline"]
+
+  # ---------- Toyota (inclui Lexus, que e a marca premium da Toyota) ----------
+  - name: "Toyota Supra / Chaser / Soarer / Mark II"
+    tier: A
+    queries: ["toyota supra", "toyota chaser"]
+    must_any: ["supra", "chaser", "soarer", "mark ii", "cressida"]
+    usadosbr: ["toyota/supra"]
+    icarros: ["toyota/supra"]
+
+  - name: "Toyota Altezza / Lexus IS"
+    tier: A
+    queries: ["toyota altezza", "lexus is300"]
+    must_any: ["altezza", "is300", "is250", "is350"]
+    usadosbr: ["lexus/is-300", "lexus/is-250"]
+
+  - name: "Lexus SC / GS (RWD)"
+    tier: B
+    queries: ["lexus sc300", "lexus gs300"]
+    must_any: ["sc300", "sc400", "gs300", "gs350"]
+
+  - name: "Toyota AE86 / Corolla RWD"
+    tier: A
+    queries: ["ae86", "toyota trueno"]
+    must_any: ["ae86", "trueno", "levin"]
+
+  # ---------- Mazda ----------
+  - name: "Mazda MX-5 / Miata"
+    tier: A
+    queries: ["mazda mx-5", "mazda miata"]
+    must_any: ["mx5", "mx-5", "miata"]
+    usadosbr: ["mazda/mx-5"]
+    icarros: ["mazda/mx-5"]
+
+  - name: "Mazda RX-7 / RX-8"
+    tier: A
+    queries: ["mazda rx-8", "mazda rx-7"]
+    must_any: ["rx8", "rx-8", "rx7", "rx-7"]
+    usadosbr: ["mazda/rx-8"]
+    icarros: ["mazda/rx-8"]
+
+  # Nissan Z classico - traseiro, motor longitudinal, base de drift historica
+  - name: "Nissan 240Z / 260Z / 280ZX / 300ZX"
+    tier: A
+    queries: ["nissan 300zx", "datsun 240z"]
+    must_any: ["300zx", "280zx", "260z", "240z", "fairlady z"]
+
+  # ---------- Audi: REMOVIDA em 2026-08-24 ----------
+  # Ele definiu a regra "somente traccao traseira, se nao fizer drift nao quero".
+  # A3/A4/TT sao dianteira ou quattro (integral) - nao derrapam de traseira.
+  # Os unicos Audi traseiro-dominantes (R8, RS5) custam varias vezes o orcamento.
+  # A marca inteira saiu por isso. NAO readicionar sem ele mandar.
+
+# ============================================================================
+#  Palavras que MATAM o anuncio (nem notifica)
+#  OBS: 'batido'/'leilao' NAO estao aqui de proposito - voce quer esses.
+# ============================================================================
+blocklist:
+  # --- Versoes 4x4/integral dos modelos que continuam na lista. Regra dele:
+  # "somente traccao traseira". BMW xDrive, Skyline GT-R (ATTESA) e afins sao
+  # integrais e nao servem, mesmo o modelo base sendo traseiro.
+  - xdrive
+  - x-drive
+  - quattro
+  - 4motion
+  - awd
+  - 4x4
+  - traccao integral
+  - tracao integral
+  - tracao 4x4
+  - tracao dianteira
+  # ---
+  - sucata
+  - so pecas
+  - somente pecas
+  - apenas pecas
+  - para retirada de pecas
+  - retirada de pecas
+  - so documento
+  - somente documento
+  - apenas documento
+  - so o documento
+  - documento avulso
+  - sem motor
+  - sem documento
+  - nao anda
+  - nao pega
+  - carcaca
+  - monobloco
+  - so a lata
+  - miniatura
+  - autorama
+  - hot wheels
+  - capa
+  - adesivo
+  - chaveiro
+  - manual do proprietario
+  - alugo
+  - aluguel
+  - consorcio
+  - carta de credito
+  - procuro
+  - troco por
+
+# Palavras que marcam "leilao / batido" - nao bloqueiam, so etiquetam e pontuam
+auction_keywords:
+  - leilao
+  - leilaozinho
+  - ex-leilao
+  - de leilao
+  - sinistro
+  - sinistrado
+  - recuperado
+  - recuperada
+  - batido
+  - batida
+  - avariado
+  - salvado
+  - remarcado
+  - baixado
+  - media monta
+  - pequena monta
+  - documento de baixa

@@ -1,0 +1,5 @@
+curl_cffi>=0.7      # obrigatorio: imita o TLS do Chrome (OLX/Webmotors barram requests)
+beautifulsoup4>=4.12
+lxml>=5.0
+PyYAML>=6.0
+certifi>=2024.0
