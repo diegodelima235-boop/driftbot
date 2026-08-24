@@ -10,8 +10,12 @@ on:
     # bot para no meio do mes - nesse caso volte para "0 11-23,0-1 * * *" (1x/hora,
     # 8h-22h BRT, ~1.800 min/mes).
     #
-    # O cron do GitHub costuma atrasar 5-20 min em horario de pico. Nao e relogio.
-    - cron: "*/30 * * * *"
+    # Minutos 13 e 43 DE PROPOSITO, nao :00/:30. O GitHub documenta que o evento
+    # `schedule` atrasa - e as vezes e descartado - quando cai em horario de pico,
+    # e o pico e justamente a virada da hora e a meia hora. Com */30 (:00 e :30)
+    # nenhuma execucao agendada disparou em 1h de teste em 2026-08-24.
+    # Isto NAO e um relogio: atraso de alguns minutos e normal e esperado.
+    - cron: "13,43 * * * *"
   workflow_dispatch: {}   # botao "Run workflow" pra rodar na hora
 
 # Se um ciclo demorar mais que o intervalo, nao empilha dois ao mesmo tempo.
