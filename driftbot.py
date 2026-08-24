@@ -116,11 +116,24 @@ def load_config() -> dict:
     # A regiao (cidades da vizinhanca dele) tambem fica fora do repo publico.
     # Vem como JSON num secret unico, porque e uma secao inteira e nao um valor.
     regiao = os.environ.get("DRIFTBOT_REGION")
+    origem = "padrao generico do config.yaml"
+    if local.exists() and (yaml.safe_load(open(local, encoding="utf-8")) or {}).get("region"):
+        origem = "secrets.local.yaml"
     if regiao:
         try:
             cfg["region"].update(json.loads(regiao))
+            origem = "secret DRIFTBOT_REGION"
         except ValueError as e:
             log.error("DRIFTBOT_REGION nao e JSON valido: %s", e)
+
+    # Diagnostico sem vazar nada: diz a ORIGEM e a CONTAGEM, nunca os nomes das
+    # cidades - este log e publico. Sem isso nao da pra saber se o secret pegou.
+    n = len(cfg["region"].get("cidades_perto") or []) + len(
+        cfg["region"].get("cidades_medio") or []
+    )
+    log.info("regiao carregada de: %s (%d cidades priorizadas)", origem, n)
+    if n == 0:
+        log.warning("nenhuma cidade priorizada - proximidade nao vai pontuar")
 
     return cfg
 
