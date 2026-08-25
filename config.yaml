@@ -11,17 +11,19 @@ telegram:
   chat_id: ""
 
 budget:
-  max_price: 100000
+  # Voltou pra 40k em 2026-08-24: "nao quero pagar muito no carro".
+  max_price: 40000
   # Abaixo disso quase sempre e sucata/anuncio falso/so documento
   min_price: 4000
   # Se o preco cair >= X% num anuncio ja visto, notifica de novo
   price_drop_alert_pct: 7
-  # Quanto "estar em conta" pesa na nota (0-40). Subiu de 20 pra 35 junto com o
-  # teto: com teto alto e peso baixo, carro caro empata com carro barato e some
-  # o que ele realmente quer. Com 35, um de 30k ganha ~25 pontos de um de 95k.
+  # Quanto "estar em conta" pesa na nota (0-40). Fica em 35 porque preco virou a
+  # prioridade declarada dele - com teto de 40k isso separa bem: um de 22k ganha
+  # ~16 pontos de um de 38k, o suficiente pra vir primeiro na fila de alertas.
   peso_preco: 35
-  # Referencia de "barganha": abaixo desta fracao do teto, ganha selo e bonus.
-  fracao_barganha: 0.45
+  # Abaixo desta fracao do teto, ganha selo EM CONTA e bonus.
+  # 0.7 x 40.000 = R$ 28.000 - marca a metade mais barata do que existe hoje.
+  fracao_barganha: 0.7
 
 year:
   min: 1968
