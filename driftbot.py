@@ -16,6 +16,7 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
@@ -55,9 +56,17 @@ class RedigirSegredos(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, str):
             record.msg = self._limpar(record.msg)
-        if record.args:
+
+        args = record.args
+        if isinstance(args, Mapping):
+            # `log.info("x: %s", {...})` guarda o dict CRU em record.args, nao numa
+            # tupla. Iterar por cima devolveria as chaves e quebraria a formatacao.
+            record.args = {
+                k: (self._limpar(v) if isinstance(v, str) else v) for k, v in args.items()
+            }
+        elif args:
             record.args = tuple(
-                self._limpar(a) if isinstance(a, str) else a for a in record.args
+                self._limpar(a) if isinstance(a, str) else a for a in args
             )
         return True
 
