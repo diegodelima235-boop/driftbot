@@ -104,6 +104,38 @@ class Telegram:
         return self.send_text(caption[:4096])
 
     # ------------------------------------------------------------------
+    def send_document(self, caminho, legenda: str = "") -> bool:
+        """Manda arquivo. A lista completa nao cabe nos 4096 chars de uma mensagem.
+
+        Usa `requests`, nao o curl_cffi do resto do projeto: curl_cffi nao implementa
+        upload multipart (levanta NotImplementedError em `files=`). Aqui isso nao custa
+        nada, porque o motivo de usar curl_cffi e o fingerprint TLS da OLX/Webmotors -
+        a API do Telegram nao tem anti-bot nenhum.
+        """
+        if not self.enabled:
+            return False
+
+        import certifi
+        import requests
+
+        url = API.format(token=self.token, method="sendDocument")
+        try:
+            with open(caminho, "rb") as f:
+                r = requests.post(
+                    url,
+                    data={"chat_id": self.chat_id, "caption": legenda[:1024]},
+                    files={"document": (getattr(caminho, "name", "lista.txt"), f)},
+                    timeout=60,
+                    verify=certifi.where(),
+                )
+            ok = r.status_code == 200 and r.json().get("ok")
+            if not ok:
+                log.warning("Telegram recusou o documento: HTTP %s", r.status_code)
+            return bool(ok)
+        except Exception as e:
+            log.warning("falha ao enviar documento: %s", type(e).__name__)
+            return False
+
     def send_batch(self, items: list[tuple[Listing, str]], pause: float = 1.2) -> list[Listing]:
         """Devolve os que REALMENTE foram enviados.
 

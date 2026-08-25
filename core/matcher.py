@@ -45,6 +45,8 @@ class Matcher:
 
         b = cfg["budget"]
         self.min_price, self.max_price = b["min_price"], b["max_price"]
+        self.peso_preco = b.get("peso_preco", 20)
+        self.fracao_barganha = b.get("fracao_barganha", 0.55)
         y = cfg["year"]
         self.min_year, self.max_year = y["min"], y["max"]
 
@@ -136,12 +138,15 @@ class Matcher:
             score -= 20
             why.append(f"fora de {self.uf}")
 
-        # preco: quanto mais abaixo do teto, melhor
+        # Preco: o criterio que ele mais valoriza ("foco e ter os mais em conta").
+        # O peso vem do config porque tem que subir junto com o teto - senao, com
+        # teto alto, um carro de 95k fica quase empatado com um de 30k.
         if li.price:
             folga = 1 - (li.price / self.max_price)
-            score += int(folga * 20)
-            if li.price <= self.max_price * 0.55:
-                why.append("bem abaixo do teto")
+            score += int(folga * self.peso_preco)
+            if li.price <= self.max_price * self.fracao_barganha:
+                score += 5
+                why.append("EM CONTA")
         else:
             why.append("preco sob consulta")
 

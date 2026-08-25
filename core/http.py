@@ -100,6 +100,28 @@ class Http:
         log.warning("%s falhou: %s", safe_url(url), type(last_err).__name__ if last_err else "?")
         return None
 
+    def post(self, url: str, *, tries: int = 2, **kw):
+        """Usado so pro upload de arquivo no Telegram (sendDocument)."""
+        for attempt in range(1, tries + 1):
+            self._throttle()
+            try:
+                r = self._cr.post(
+                    url, impersonate="chrome", timeout=self.timeout,
+                    verify=CA_BUNDLE, headers=dict(BASE_HEADERS), **kw,
+                )
+                r.encoding = "utf-8"
+                if r.status_code == 200:
+                    return r
+                log.warning("POST %s -> HTTP %s", safe_url(url), r.status_code)
+                if attempt >= tries:
+                    return None
+            except Exception as e:
+                if attempt >= tries:
+                    log.warning("POST %s falhou: %s", safe_url(url), type(e).__name__)
+                    return None
+                time.sleep(3 * attempt)
+        return None
+
     def get_json(self, url: str, **kw):
         r = self.get(url, headers={"Accept": "application/json"}, **kw)
         if r is None:

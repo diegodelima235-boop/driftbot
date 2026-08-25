@@ -11,11 +11,17 @@ telegram:
   chat_id: ""
 
 budget:
-  max_price: 70000
+  max_price: 100000
   # Abaixo disso quase sempre e sucata/anuncio falso/so documento
   min_price: 4000
   # Se o preco cair >= X% num anuncio ja visto, notifica de novo
   price_drop_alert_pct: 7
+  # Quanto "estar em conta" pesa na nota (0-40). Subiu de 20 pra 35 junto com o
+  # teto: com teto alto e peso baixo, carro caro empata com carro barato e some
+  # o que ele realmente quer. Com 35, um de 30k ganha ~25 pontos de um de 95k.
+  peso_preco: 35
+  # Referencia de "barganha": abaixo desta fracao do teto, ganha selo e bonus.
+  fracao_barganha: 0.45
 
 year:
   min: 1968

@@ -287,6 +287,100 @@ def scan(cfg: dict, http: Http, matcher: Matcher, store: Store, tg: Telegram,
     return len(enviados)
 
 
+def coletar_tudo(cfg: dict, http: Http, matcher: Matcher) -> list:
+    """Varre todas as fontes e devolve TUDO que passou no filtro, ja ordenado."""
+    achados: dict[str, object] = {}
+
+    def guardar(listings):
+        for li in listings:
+            hit = matcher.evaluate(li)
+            if hit and hit.uid not in achados:
+                achados[hit.uid] = hit
+
+    if "olx" in cfg["scan"]["sources"]:
+        olx = sources.get("olx")
+        for marca, pags in (cfg["scan"].get("brand_sweep") or {}).items():
+            guardar(olx.search(http, cfg, marca, pages=pags))
+        for termo in cfg["scan"].get("auction_sweep", []):
+            for li in olx.search(http, cfg, termo, pages=2):
+                li.is_auction = True
+                hit = matcher.evaluate(li)
+                if hit and hit.uid not in achados:
+                    achados[hit.uid] = hit
+
+    for src, termo in build_queries(cfg):
+        guardar(sources.get(src).search(http, cfg, termo))
+    for src in broad_sources(cfg):
+        guardar(sources.get(src).search(http, cfg, None))
+
+    return sorted(achados.values(), key=lambda x: (x.price or 10**9))
+
+
+def gerar_lista(cfg: dict, http: Http, matcher: Matcher, tg, enviar: bool) -> int:
+    """Inventario completo do que existe agora, do mais barato pro mais caro."""
+    itens = coletar_tudo(cfg, http, matcher)
+    if not itens:
+        print("nada encontrado")
+        return 0
+
+    teto = cfg["budget"]["max_price"]
+    linhas = [
+        f"LISTA COMPLETA - {len(itens)} anuncios ate R$ {teto:,}".replace(",", "."),
+        "ordenado do MAIS BARATO pro mais caro",
+        "",
+    ]
+    for i, x in enumerate(itens, 1):
+        tags = []
+        if x.gearbox == "manual":
+            tags.append("MANUAL")
+        elif x.paddles == "provavel":
+            tags.append("auto/borboleta?")
+        elif x.paddles == "sim":
+            tags.append("auto+borboleta")
+        if x.is_project:
+            tags.append("PROJETO")
+        if x.is_auction:
+            tags.append("LEILAO")
+        linhas.append(
+            f"{i:3}. {x.price_fmt:>12}  {x.title[:44]:44}  {x.local_fmt[:22]:22}"
+            f"  {' '.join(tags)}"
+        )
+        linhas.append(f"      {x.url}")
+
+    texto = "\n".join(linhas)
+    caminho = ROOT / "lista_completa.txt"
+    caminho.write_text(texto, encoding="utf-8")
+    print(texto)
+    print(f"\nsalvo em {caminho}")
+
+    if enviar and tg and tg.enabled:
+        # Telegram corta em 4096 chars: manda um resumo e o arquivo completo
+        faixas = {"ate 40k": 0, "40-60k": 0, "60-80k": 0, "80-100k": 0}
+        for x in itens:
+            p = x.price or 0
+            if p <= 40000:
+                faixas["ate 40k"] += 1
+            elif p <= 60000:
+                faixas["40-60k"] += 1
+            elif p <= 80000:
+                faixas["60-80k"] += 1
+            else:
+                faixas["80-100k"] += 1
+        resumo = [f"\U0001f4cb <b>Lista completa: {len(itens)} anuncios</b>", ""]
+        resumo += [f"{k}: <b>{v}</b>" for k, v in faixas.items()]
+        resumo += ["", "<b>Os 15 mais em conta:</b>"]
+        for x in itens[:15]:
+            marca = " \U0001f527" if x.is_project else ""
+            cambio = " ⚙️MAN" if x.gearbox == "manual" else ""
+            resumo.append(
+                f'• <a href="{x.url}">{x.price_fmt}</a> — {x.title[:36]} '
+                f"({x.local_fmt}){cambio}{marca}"
+            )
+        tg.send_text("\n".join(resumo)[:4096])
+        tg.send_document(caminho, f"Lista completa: {len(itens)} anuncios")
+    return len(itens)
+
+
 def test_sources(cfg: dict, http: Http, matcher: Matcher) -> None:
     """Diagnostico: mostra fonte por fonte se ainda esta funcionando."""
     print(f"\n{'=' * 78}\n  TESTE DE FONTES\n{'=' * 78}")
@@ -323,6 +417,8 @@ def main() -> int:
     ap.add_argument("--once", action="store_true", help="uma varredura e sai")
     ap.add_argument("--test", action="store_true", help="testa as fontes, nao notifica")
     ap.add_argument("--dry-run", action="store_true", help="varre e imprime, nao envia")
+    ap.add_argument("--lista", action="store_true",
+                    help="inventario COMPLETO do que existe agora, do mais barato pro caro")
     ap.add_argument("--reset", action="store_true", help="esquece tudo que ja foi visto")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -336,6 +432,11 @@ def main() -> int:
 
     if args.test:
         test_sources(cfg, http, matcher)
+        return 0
+
+    if args.lista:
+        tg = Telegram(cfg["telegram"]["bot_token"], cfg["telegram"]["chat_id"], http)
+        gerar_lista(cfg, http, matcher, tg, enviar=not args.dry_run)
         return 0
 
     db_path = ROOT / "driftbot.db"
